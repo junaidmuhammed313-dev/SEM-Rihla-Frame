@@ -40,8 +40,8 @@
             position: relative;
             width: 100%;
             aspect-ratio: var(--aspect-ratio);
-            max-height: 55vh; 
-            max-width: min(95vw, calc(55vh * (var(--aspect-ratio))));
+            max-height: 50vh; 
+            max-width: min(95vw, calc(50vh * (var(--aspect-ratio))));
             background: #0a0a0a;
             overflow: hidden;
             border-radius: 12px;
@@ -55,7 +55,7 @@
             left: 50%;
             cursor: move;
             transform-origin: center center;
-            will-change: transform;
+            will-change: transform, filter;
             z-index: 5;
         }
 
@@ -67,7 +67,7 @@
             height: 100%;
             pointer-events: none;
             z-index: 10;
-            object-fit: fill; /* Matches the 2480x3071 target exactly */
+            object-fit: fill;
             display: none;
         }
 
@@ -87,9 +87,9 @@
             gap: 4px;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             border-radius: 16px;
-            height: 70px;
+            height: 64px;
             width: 100%;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -101,10 +101,43 @@
         
         .btn-upload-photo { background: #4f46e5; }
         .btn-upload-frame { background: #f59e0b; }
+        .btn-edit { background: #6366f1; }
         .btn-save { background: #2563eb; }
         .btn-share { background: #10b981; }
 
         .btn-disabled { opacity: 0.2; pointer-events: none; }
+
+        /* Adjustment Sliders Style */
+        .slider-panel {
+            display: none;
+            padding: 10px 0;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #fff;
+            margin-top: -7px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
 
         #loading-overlay {
             display: none;
@@ -158,12 +191,33 @@
     </div>
 
     <footer class="glass-panel p-4 shrink-0">
-        <!-- Hidden inputs -->
         <input type="file" id="photo-input" accept="image/*" class="hidden">
         <input type="file" id="frame-input" accept="image/png" class="hidden">
         
-        <div class="max-w-md mx-auto space-y-3">
-            <div class="grid grid-cols-2 gap-3">
+        <div class="max-w-md mx-auto">
+            <!-- Adjustment Sliders (Hidden by default) -->
+            <div id="edit-panel" class="slider-panel space-y-4">
+                <div class="flex items-center gap-4">
+                    <span class="text-[10px] font-bold w-16">EXPOSURE</span>
+                    <input type="range" id="brightness-slider" min="50" max="150" value="100" oninput="applyFilters()">
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="text-[10px] font-bold w-16">SATURATION</span>
+                    <input type="range" id="saturation-slider" min="0" max="200" value="100" oninput="applyFilters()">
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="text-[10px] font-bold w-16">CONTRAST</span>
+                    <input type="range" id="contrast-slider" min="50" max="150" value="100" oninput="applyFilters()">
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="text-[10px] font-bold w-16">B&W</span>
+                    <input type="range" id="grayscale-slider" min="0" max="100" value="0" oninput="applyFilters()">
+                </div>
+                <button onclick="resetFilters()" class="text-[9px] text-blue-400 font-bold uppercase tracking-widest w-full text-center py-1">Reset Filters</button>
+            </div>
+
+            <!-- Primary Buttons -->
+            <div class="grid grid-cols-2 gap-3 mb-3">
                 <button class="btn-action btn-upload-photo" onclick="document.getElementById('photo-input').click()">
                     <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                     <span>Add Photo</span>
@@ -173,6 +227,11 @@
                     <span>Add Frame</span>
                 </button>
             </div>
+
+            <button id="edit-btn" class="btn-action btn-edit btn-disabled mb-3" onclick="toggleEdit()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                <span>Edit Photo Appearance</span>
+            </button>
 
             <div class="grid grid-cols-2 gap-3">
                 <button id="download-btn" class="btn-action btn-save btn-disabled" onclick="exportImage()">
@@ -203,28 +262,33 @@
         const workspace = document.getElementById('workspace');
         const downloadBtn = document.getElementById('download-btn');
         const shareBtn = document.getElementById('share-btn');
+        const editBtn = document.getElementById('edit-btn');
+        const editPanel = document.getElementById('edit-panel');
         const exportCanvas = document.getElementById('export-canvas');
         const loadingOverlay = document.getElementById('loading-overlay');
         const hintText = document.getElementById('hint-text');
+
+        // Filter Sliders
+        const bSlider = document.getElementById('brightness-slider');
+        const sSlider = document.getElementById('saturation-slider');
+        const cSlider = document.getElementById('contrast-slider');
+        const gSlider = document.getElementById('grayscale-slider');
 
         let state = {
             scale: 1, lastScale: 1,
             x: 0, y: 0, lastX: 0, lastY: 0,
             isDragging: false, startDist: 0,
             touchStartX: 0, touchStartY: 0,
-            hasPhoto: false, hasFrame: false
+            hasPhoto: false, hasFrame: false,
+            isEditing: false
         };
 
-        // Handle User Photo Upload
         photoInput.addEventListener('change', (e) => handleUpload(e, userPhoto, 'photo'));
-        
-        // Handle Frame Upload
         frameInput.addEventListener('change', (e) => handleUpload(e, frameImage, 'frame'));
 
         function handleUpload(e, targetImg, type) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = (event) => {
                 targetImg.src = event.target.result;
@@ -233,6 +297,7 @@
                     if (type === 'photo') {
                         setupPhotoSize();
                         state.hasPhoto = true;
+                        editBtn.classList.remove('btn-disabled');
                     } else {
                         state.hasFrame = true;
                     }
@@ -246,7 +311,6 @@
             const workspaceRect = workspace.getBoundingClientRect();
             const imgRatio = userPhoto.naturalWidth / userPhoto.naturalHeight;
             const wsRatio = workspaceRect.width / workspaceRect.height;
-            
             if (imgRatio > wsRatio) {
                 userPhoto.style.height = '100%';
                 userPhoto.style.width = 'auto';
@@ -254,10 +318,8 @@
                 userPhoto.style.width = '100%';
                 userPhoto.style.height = 'auto';
             }
-
             state.scale = 1.05;
-            state.x = 0;
-            state.y = 0;
+            state.x = 0; state.y = 0;
             updateTransform();
             hintText.classList.remove('opacity-0');
         }
@@ -269,31 +331,45 @@
             }
         }
 
-        // Editor Logic (Drag & Zoom)
+        function toggleEdit() {
+            state.isEditing = !state.isEditing;
+            editPanel.style.display = state.isEditing ? 'block' : 'none';
+        }
+
+        function applyFilters() {
+            const b = bSlider.value;
+            const s = sSlider.value;
+            const c = cSlider.value;
+            const g = gSlider.value;
+            userPhoto.style.filter = `brightness(${b}%) saturate(${s}%) contrast(${c}%) grayscale(${g}%)`;
+        }
+
+        function resetFilters() {
+            bSlider.value = 100;
+            sSlider.value = 100;
+            cSlider.value = 100;
+            gSlider.value = 0;
+            applyFilters();
+        }
+
+        // Editor Logic
         workspace.addEventListener('mousedown', startDrag);
         window.addEventListener('mousemove', drag);
         window.addEventListener('mouseup', endDrag);
-
         workspace.addEventListener('touchstart', (e) => {
             if (e.touches.length === 2) {
                 state.startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                 state.lastScale = state.scale;
-            } else {
-                startDrag(e.touches[0]);
-            }
+            } else { startDrag(e.touches[0]); }
         });
-
         window.addEventListener('touchmove', (e) => {
             if (e.touches.length === 2) {
                 const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                 const delta = dist / state.startDist;
                 state.scale = Math.min(Math.max(0.01, state.lastScale * delta), 15);
                 updateTransform();
-            } else {
-                drag(e.touches[0]);
-            }
+            } else { drag(e.touches[0]); }
         }, { passive: false });
-
         window.addEventListener('touchend', endDrag);
 
         function startDrag(e) {
@@ -304,7 +380,6 @@
             state.lastX = state.x;
             state.lastY = state.y;
         }
-
         function drag(e) {
             if (!state.isDragging) return;
             const dx = e.clientX - state.touchStartX;
@@ -313,9 +388,7 @@
             state.y = state.lastY + dy;
             updateTransform();
         }
-
         function endDrag() { state.isDragging = false; }
-
         function updateTransform() {
             userPhoto.style.transform = `translate(-50%, -50%) translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
         }
@@ -324,31 +397,29 @@
         async function exportImage() {
             loadingOverlay.style.display = 'flex';
             await new Promise(r => setTimeout(r, 200));
-
             try {
                 const ctx = exportCanvas.getContext('2d');
                 const targetW = 2480;
                 const targetH = 3071;
-
                 ctx.fillStyle = "#000";
                 ctx.fillRect(0, 0, targetW, targetH);
-
                 const workspaceRect = workspace.getBoundingClientRect();
                 const scaleFactor = targetW / workspaceRect.width;
-
                 const baseW = userPhoto.offsetWidth;
                 const baseH = userPhoto.offsetHeight;
-                
                 const finalW = baseW * state.scale * scaleFactor;
                 const finalH = baseH * state.scale * scaleFactor;
-                
                 const finalCenterX = (targetW / 2) + (state.x * scaleFactor);
                 const finalCenterY = (targetH / 2) + (state.y * scaleFactor);
-                
                 const finalX = finalCenterX - (finalW / 2);
                 const finalY = finalCenterY - (finalH / 2);
 
+                // Apply Filters to Canvas Context
+                ctx.filter = userPhoto.style.filter || 'none';
                 ctx.drawImage(userPhoto, finalX, finalY, finalW, finalH);
+                
+                // Clear filter before drawing frame
+                ctx.filter = 'none';
                 ctx.drawImage(frameImage, 0, 0, targetW, targetH);
 
                 exportCanvas.toBlob((blob) => {
@@ -362,7 +433,6 @@
                     setTimeout(() => URL.revokeObjectURL(url), 2000);
                     loadingOverlay.style.display = 'none';
                 }, 'image/png', 1.0);
-
             } catch (err) {
                 alert("Export error: " + err.message);
                 loadingOverlay.style.display = 'none';
