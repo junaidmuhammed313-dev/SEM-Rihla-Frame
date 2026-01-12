@@ -122,6 +122,8 @@
             box-shadow: 0 20px 60px rgba(0,0,0,0.8);
             transform: translateY(0);
             transition: transform 0.3s ease;
+            max-height: 60vh;
+            overflow-y: auto;
         }
 
         input[type=range] {
@@ -200,7 +202,7 @@
         </div>
     </div>
 
-    <!-- Floating Adjustment Sliders (Moved outside footer for absolute top layering) -->
+    <!-- Floating Adjustment Sliders -->
     <div id="edit-panel" class="slider-panel space-y-6">
         <div class="flex items-center justify-between mb-2">
             <span class="text-[11px] font-black uppercase tracking-widest text-white/80">Adjust Appearance</span>
@@ -215,12 +217,20 @@
                 <input type="range" id="brightness-slider" min="50" max="150" value="100" oninput="applyFilters()">
             </div>
             <div class="flex items-center gap-5">
+                <span class="text-[9px] font-black w-16 text-white/40 tracking-tighter uppercase">Contrast</span>
+                <input type="range" id="contrast-slider" min="50" max="150" value="100" oninput="applyFilters()">
+            </div>
+            <div class="flex items-center gap-5">
                 <span class="text-[9px] font-black w-16 text-white/40 tracking-tighter uppercase">Saturate</span>
                 <input type="range" id="saturation-slider" min="0" max="200" value="100" oninput="applyFilters()">
             </div>
             <div class="flex items-center gap-5">
-                <span class="text-[9px] font-black w-16 text-white/40 tracking-tighter uppercase">Contrast</span>
-                <input type="range" id="contrast-slider" min="50" max="150" value="100" oninput="applyFilters()">
+                <span class="text-[9px] font-black w-16 text-white/40 tracking-tighter uppercase">Vibrance</span>
+                <input type="range" id="vibrance-slider" min="0" max="200" value="100" oninput="applyFilters()">
+            </div>
+            <div class="flex items-center gap-5">
+                <span class="text-[9px] font-black w-16 text-white/40 tracking-tighter uppercase">Warmth</span>
+                <input type="range" id="temperature-slider" min="0" max="100" value="0" oninput="applyFilters()">
             </div>
             <div class="flex items-center gap-5">
                 <span class="text-[9px] font-black w-16 text-white/40 tracking-tighter uppercase">Grayscale</span>
@@ -286,6 +296,8 @@
         const sSlider = document.getElementById('saturation-slider');
         const cSlider = document.getElementById('contrast-slider');
         const gSlider = document.getElementById('grayscale-slider');
+        const tSlider = document.getElementById('temperature-slider');
+        const vSlider = document.getElementById('vibrance-slider');
 
         let state = {
             scale: 1, lastScale: 1,
@@ -344,11 +356,22 @@
             const s = sSlider.value;
             const c = cSlider.value;
             const g = gSlider.value;
-            userPhoto.style.filter = `brightness(${b}%) saturate(${s}%) contrast(${c}%) grayscale(${g}%)`;
+            const t = tSlider.value;
+            const v = vSlider.value;
+            
+            // Saturation and Vibrance are combined for the final saturation boost
+            const combinedSat = parseInt(s) + (parseInt(v) - 100);
+            
+            userPhoto.style.filter = `brightness(${b}%) saturate(${combinedSat}%) contrast(${c}%) grayscale(${g}%) sepia(${t}%)`;
         }
 
         function resetFilters() {
-            bSlider.value = 100; sSlider.value = 100; cSlider.value = 100; gSlider.value = 0;
+            bSlider.value = 100; 
+            sSlider.value = 100; 
+            cSlider.value = 100; 
+            gSlider.value = 0;
+            tSlider.value = 0;
+            vSlider.value = 100;
             applyFilters();
         }
 
