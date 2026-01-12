@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Manual Photo Framer | SEM Rihla</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+        :root {
+            --target-w: 2480px;
+            --target-h: 3071px;
+            --aspect-ratio: 2480 / 3071;
+        }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+            overflow: hidden;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #editor-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: radial-gradient(circle at center, #111 0%, #000 100%);
+            padding: 15px;
+            overflow: hidden;
+        }
+
+        #workspace {
+            position: relative;
+            width: 100%;
+            aspect-ratio: var(--aspect-ratio);
+            max-height: 55vh; 
+            max-width: min(95vw, calc(55vh * (var(--aspect-ratio))));
+            background: #0a0a0a;
+            overflow: hidden;
+            border-radius: 12px;
+            box-shadow: 0 0 60px rgba(0,0,0,1);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #user-photo {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            cursor: move;
+            transform-origin: center center;
+            will-change: transform;
+            z-index: 5;
+        }
+
+        #frame-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            object-fit: fill; /* Matches the 2480x3071 target exactly */
+            display: none;
+        }
+
+        .glass-panel {
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: env(safe-area-inset-bottom, 24px);
+        }
+
+        .btn-action {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 16px;
+            height: 70px;
+            width: 100%;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-action:active { transform: scale(0.94); filter: brightness(1.1); }
+        
+        .btn-upload-photo { background: #4f46e5; }
+        .btn-upload-frame { background: #f59e0b; }
+        .btn-save { background: #2563eb; }
+        .btn-share { background: #10b981; }
+
+        .btn-disabled { opacity: 0.2; pointer-events: none; }
+
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.98);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .loader-bar {
+            width: 140px;
+            height: 3px;
+            background: rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+            margin-top: 24px;
+            border-radius: 4px;
+        }
+
+        .loader-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0; height: 100%; width: 50%;
+            background: #fff;
+            animation: loading 1s infinite ease-in-out;
+        }
+
+        @keyframes loading { 0% { left: -50%; } 100% { left: 100%; } }
+    </style>
+</head>
+<body>
+
+    <header class="pt-6 pb-2 px-6 text-center shrink-0">
+        <h1 class="text-2xl font-black tracking-tighter uppercase leading-tight">SEM Rihla <span class="text-amber-500">Photo Frame</span></h1>
+        <p class="text-[10px] uppercase tracking-[0.4em] text-slate-500 font-bold">Wafy Alumni Association</p>
+    </header>
+
+    <div id="editor-container">
+        <div id="workspace">
+            <img id="user-photo" src="" alt="" style="display: none;">
+            <img id="frame-image" src="" alt="">
+        </div>
+        
+        <div id="hint-text" class="absolute bottom-4 text-[9px] text-slate-400 uppercase tracking-[0.2em] font-bold pointer-events-none opacity-0 transition-opacity duration-500">
+            Pinch to zoom • Drag photo
+        </div>
+    </div>
+
+    <footer class="glass-panel p-4 shrink-0">
+        <!-- Hidden inputs -->
+        <input type="file" id="photo-input" accept="image/*" class="hidden">
+        <input type="file" id="frame-input" accept="image/png" class="hidden">
+        
+        <div class="max-w-md mx-auto space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <button class="btn-action btn-upload-photo" onclick="document.getElementById('photo-input').click()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    <span>Add Photo</span>
+                </button>
+                <button class="btn-action btn-upload-frame" onclick="document.getElementById('frame-input').click()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    <span>Add Frame</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button id="download-btn" class="btn-action btn-save btn-disabled" onclick="exportImage()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    <span>Save HQ</span>
+                </button>
+                <button id="share-btn" class="btn-action btn-share btn-disabled" onclick="shareToWhatsApp()">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                    <span>Share</span>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <div id="loading-overlay">
+        <p class="text-[10px] uppercase tracking-[0.5em] font-black text-blue-500">Generating Master</p>
+        <div class="loader-bar"></div>
+        <p class="text-[9px] text-slate-600 mt-4 uppercase tracking-widest font-bold">2480 x 3071 • 300 DPI</p>
+    </div>
+
+    <canvas id="export-canvas" width="2480" height="3071" style="display: none;"></canvas>
+
+    <script>
+        const photoInput = document.getElementById('photo-input');
+        const frameInput = document.getElementById('frame-input');
+        const userPhoto = document.getElementById('user-photo');
+        const frameImage = document.getElementById('frame-image');
+        const workspace = document.getElementById('workspace');
+        const downloadBtn = document.getElementById('download-btn');
+        const shareBtn = document.getElementById('share-btn');
+        const exportCanvas = document.getElementById('export-canvas');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const hintText = document.getElementById('hint-text');
+
+        let state = {
+            scale: 1, lastScale: 1,
+            x: 0, y: 0, lastX: 0, lastY: 0,
+            isDragging: false, startDist: 0,
+            touchStartX: 0, touchStartY: 0,
+            hasPhoto: false, hasFrame: false
+        };
+
+        // Handle User Photo Upload
+        photoInput.addEventListener('change', (e) => handleUpload(e, userPhoto, 'photo'));
+        
+        // Handle Frame Upload
+        frameInput.addEventListener('change', (e) => handleUpload(e, frameImage, 'frame'));
+
+        function handleUpload(e, targetImg, type) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                targetImg.src = event.target.result;
+                targetImg.style.display = 'block';
+                targetImg.onload = () => {
+                    if (type === 'photo') {
+                        setupPhotoSize();
+                        state.hasPhoto = true;
+                    } else {
+                        state.hasFrame = true;
+                    }
+                    checkReady();
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function setupPhotoSize() {
+            const workspaceRect = workspace.getBoundingClientRect();
+            const imgRatio = userPhoto.naturalWidth / userPhoto.naturalHeight;
+            const wsRatio = workspaceRect.width / workspaceRect.height;
+            
+            if (imgRatio > wsRatio) {
+                userPhoto.style.height = '100%';
+                userPhoto.style.width = 'auto';
+            } else {
+                userPhoto.style.width = '100%';
+                userPhoto.style.height = 'auto';
+            }
+
+            state.scale = 1.05;
+            state.x = 0;
+            state.y = 0;
+            updateTransform();
+            hintText.classList.remove('opacity-0');
+        }
+
+        function checkReady() {
+            if (state.hasPhoto && state.hasFrame) {
+                downloadBtn.classList.remove('btn-disabled');
+                shareBtn.classList.remove('btn-disabled');
+            }
+        }
+
+        // Editor Logic (Drag & Zoom)
+        workspace.addEventListener('mousedown', startDrag);
+        window.addEventListener('mousemove', drag);
+        window.addEventListener('mouseup', endDrag);
+
+        workspace.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                state.startDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+                state.lastScale = state.scale;
+            } else {
+                startDrag(e.touches[0]);
+            }
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+                const delta = dist / state.startDist;
+                state.scale = Math.min(Math.max(0.01, state.lastScale * delta), 15);
+                updateTransform();
+            } else {
+                drag(e.touches[0]);
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', endDrag);
+
+        function startDrag(e) {
+            if (!state.hasPhoto) return;
+            state.isDragging = true;
+            state.touchStartX = e.clientX;
+            state.touchStartY = e.clientY;
+            state.lastX = state.x;
+            state.lastY = state.y;
+        }
+
+        function drag(e) {
+            if (!state.isDragging) return;
+            const dx = e.clientX - state.touchStartX;
+            const dy = e.clientY - state.touchStartY;
+            state.x = state.lastX + dx;
+            state.y = state.lastY + dy;
+            updateTransform();
+        }
+
+        function endDrag() { state.isDragging = false; }
+
+        function updateTransform() {
+            userPhoto.style.transform = `translate(-50%, -50%) translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+        }
+
+        // Export Logic
+        async function exportImage() {
+            loadingOverlay.style.display = 'flex';
+            await new Promise(r => setTimeout(r, 200));
+
+            try {
+                const ctx = exportCanvas.getContext('2d');
+                const targetW = 2480;
+                const targetH = 3071;
+
+                ctx.fillStyle = "#000";
+                ctx.fillRect(0, 0, targetW, targetH);
+
+                const workspaceRect = workspace.getBoundingClientRect();
+                const scaleFactor = targetW / workspaceRect.width;
+
+                const baseW = userPhoto.offsetWidth;
+                const baseH = userPhoto.offsetHeight;
+                
+                const finalW = baseW * state.scale * scaleFactor;
+                const finalH = baseH * state.scale * scaleFactor;
+                
+                const finalCenterX = (targetW / 2) + (state.x * scaleFactor);
+                const finalCenterY = (targetH / 2) + (state.y * scaleFactor);
+                
+                const finalX = finalCenterX - (finalW / 2);
+                const finalY = finalCenterY - (finalH / 2);
+
+                ctx.drawImage(userPhoto, finalX, finalY, finalW, finalH);
+                ctx.drawImage(frameImage, 0, 0, targetW, targetH);
+
+                exportCanvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.download = `SEM_Rihla_Export_${Date.now()}.png`;
+                    link.href = url;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(url), 2000);
+                    loadingOverlay.style.display = 'none';
+                }, 'image/png', 1.0);
+
+            } catch (err) {
+                alert("Export error: " + err.message);
+                loadingOverlay.style.display = 'none';
+            }
+        }
+
+        function shareToWhatsApp() {
+            const msg = encodeURIComponent("Check out my memory from SEM Rihla - Ootty! 🌴⛰️");
+            window.open(`https://wa.me/?text=${msg}`);
+        }
+    </script>
+</body>
+</html>
